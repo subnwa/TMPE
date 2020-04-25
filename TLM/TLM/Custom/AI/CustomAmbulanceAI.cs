@@ -1,24 +1,62 @@
-﻿namespace TrafficManager.Custom.AI {
+namespace TrafficManager.Custom.AI {
     using ColossalFramework;
     using JetBrains.Annotations;
     using TrafficManager.API.Traffic.Data;
     using TrafficManager.API.Traffic.Enums;
     using TrafficManager.Custom.PathFinding;
     using TrafficManager.Manager.Impl;
-    using TrafficManager.RedirectionFramework.Attributes;
     using UnityEngine;
+    using Harmony;
+    using System;
+    using System.Reflection;
 
-    [TargetType(typeof(AmbulanceAI))]
+    [HarmonyPatch]
     public class CustomAmbulanceAI : CarAI {
-        [RedirectMethod]
-        [UsedImplicitly]
-        public bool CustomStartPathFind(ushort vehicleId,
-                                        ref Vehicle vehicleData,
-                                        Vector3 startPos,
-                                        Vector3 endPos,
-                                        bool startBothWays,
-                                        bool endBothWays,
-                                        bool undergroundTarget) {
+        MethodBase TargetMethod() {
+            return typeof(AmbulanceAI).GetMethod(
+                "StartPathFind",
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                Type.DefaultBinder,
+                new Type[] {
+                        typeof(ushort),
+                        typeof(Vehicle).MakeByRefType(),
+                        typeof(Vector3),
+                        typeof(Vector3),
+                        typeof(bool),
+                        typeof(bool),
+                        typeof(bool),
+                },
+                null);
+        }
+
+        bool Prefix(
+            ref bool __result,
+            ushort vehicleId,
+            ref Vehicle vehicleData,
+            Vector3 startPos,
+            Vector3 endPos,
+            bool startBothWays,
+            bool endBothWays,
+            bool undergroundTarget) {
+            __result = CustomStartPathFind(
+                vehicleId,
+                ref vehicleData,
+                startPos,
+                endPos,
+                startBothWays,
+                endBothWays,
+                undergroundTarget);
+            return false;
+        }
+
+        public bool CustomStartPathFind(
+            ushort vehicleId,
+            ref Vehicle vehicleData,
+            Vector3 startPos,
+            Vector3 endPos,
+            bool startBothWays,
+            bool endBothWays,
+            bool undergroundTarget) {
             ExtVehicleType emergencyVehType = (vehicleData.m_flags & Vehicle.Flags.Emergency2) != 0
                                      ? ExtVehicleType.Emergency
                                      : ExtVehicleType.Service;

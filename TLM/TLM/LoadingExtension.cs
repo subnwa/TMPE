@@ -5,19 +5,20 @@ namespace TrafficManager {
     using Harmony;
     using ICities;
     using JetBrains.Annotations;
-    using Object = UnityEngine.Object;
     using System.Collections.Generic;
     using System.Reflection;
     using System;
     using TrafficManager.API.Manager;
     using TrafficManager.Custom.PathFinding;
     using TrafficManager.Manager.Impl;
-    using TrafficManager.RedirectionFramework;
     using TrafficManager.State;
     using TrafficManager.UI.Localization;
     using TrafficManager.UI;
     using static TrafficManager.Util.Shortcuts;
     using UnityEngine;
+
+    using Object = UnityEngine.Object;
+
 
     [UsedImplicitly]
     public class LoadingExtension : LoadingExtensionBase {
@@ -28,18 +29,6 @@ namespace TrafficManager {
             typeof(SimulationManager).GetField("m_managers", BindingFlags.Static | BindingFlags.NonPublic)
                 ?.GetValue(null) as FastList<ISimulationManager>;
 
-        public class Detour {
-            public MethodInfo OriginalMethod;
-            public MethodInfo CustomMethod;
-            public RedirectCallsState Redirect;
-
-            public Detour(MethodInfo originalMethod, MethodInfo customMethod) {
-                OriginalMethod = originalMethod;
-                CustomMethod = customMethod;
-                Redirect = RedirectionHelper.RedirectCalls(originalMethod, customMethod);
-            }
-        }
-
         public class ManualHarmonyPatch {
             public MethodInfo method;
             public HarmonyMethod prefix;
@@ -49,9 +38,7 @@ namespace TrafficManager {
 
         public static CustomPathManager CustomPathManager { get; set; }
 
-        public static bool DetourInited { get; set; }
-
-        public static List<Detour> Detours { get; set; }
+        public static bool harmonyInstalled { get; set; }
 
         public static HarmonyInstance HarmonyInst { get; private set; }
 
@@ -73,7 +60,7 @@ namespace TrafficManager {
         /// <summary>
         /// Manually deployed Harmony patches
         /// </summary>
-        public static IList<ManualHarmonyPatch> ManualHarmonyPatches { get; } =
+        private static IList<ManualHarmonyPatch> ManualHarmonyPatches { get; } =
             new List<ManualHarmonyPatch> {
                 new ManualHarmonyPatch() {
                     method = typeof(CommonBuildingAI).GetMethod(
@@ -83,7 +70,7 @@ namespace TrafficManager {
                         new[] { typeof(ushort), typeof(Building).MakeByRefType() },
                         null),
                     prefix = new HarmonyMethod(
-                        typeof(Patch._CommonBuildingAI.SimulationStepPatch).GetMethod("Prefix"))
+                        typeof(Patch._CommonBuildingAI.SimulationStepPatch).GetMethod("Prefix")),
                 },
                 new ManualHarmonyPatch() {
                     method = typeof(RoadBaseAI).GetMethod(
@@ -94,7 +81,7 @@ namespace TrafficManager {
                         null),
                     prefix = new HarmonyMethod(
                         typeof(Patch._RoadBaseAI.TrafficLightSimulationStepPatch).GetMethod(
-                            "Prefix"))
+                            "Prefix")),
                 },
                 new ManualHarmonyPatch() {
                     method = typeof(TrainTrackBaseAI).GetMethod(
@@ -105,7 +92,7 @@ namespace TrafficManager {
                         null),
                     prefix = new HarmonyMethod(
                         typeof(Patch._TrainTrackBase.LevelCrossingSimulationStepPatch).GetMethod(
-                            "Prefix"))
+                            "Prefix")),
                 },
                 new ManualHarmonyPatch() {
                     method = typeof(RoadBaseAI).GetMethod(
@@ -115,24 +102,14 @@ namespace TrafficManager {
                         new[] { typeof(ushort), typeof(NetSegment).MakeByRefType() },
                         null),
                     prefix = new HarmonyMethod(
-                        typeof(Patch._RoadBaseAI.SegmentSimulationStepPatch).GetMethod("Prefix"))
-                }
+                        typeof(Patch._RoadBaseAI.SegmentSimulationStepPatch).GetMethod("Prefix")),
+                },
             };
 
         /// <summary>
         /// Method redirection states for Harmony-driven patches
         /// </summary>
-        public static IDictionary<MethodBase, RedirectCallsState> HarmonyMethodStates {
-            get;
-        } = new Dictionary<MethodBase, RedirectCallsState>();
-
-        /// <summary>
-        /// Method redirection states for attribute-driven detours
-        /// </summary>
-        public static IDictionary<MethodInfo, RedirectCallsState> DetouredMethodStates {
-            get;
-            private set;
-        } = new Dictionary<MethodInfo, RedirectCallsState>();
+        private List<MethodBase> PatchedMethods {get;} = new List<MethodBase>();
 
         static LoadingExtension() {
             TranslationDatabase.LoadAllTranslations();
@@ -141,39 +118,26 @@ namespace TrafficManager {
         public LoadingExtension() {
         }
 
-        public void RevertDetours() {
-            if (!DetourInited) {
+        public void UninstallHarmony() {
+            if (!harmonyInstalled) {
                 return;
             }
 
-            Log.Info("Reverting manual detours");
-            Detours.Reverse();
-            foreach (Detour d in Detours) {
-                RedirectionHelper.RevertRedirect(d.OriginalMethod, d.Redirect);
-            }
-
-            Detours.Clear();
-
-            Log.Info("Reverting attribute-driven detours");
-            AssemblyRedirector.Revert();
-
             Log.Info("Reverting Harmony detours");
-            foreach (MethodBase m in HarmonyMethodStates.Keys) {
+            foreach (MethodBase m in PatchedMethods) {
                 HarmonyInst.Unpatch(m, HarmonyPatchType.All, HARMONY_ID);
             }
+            PatchedMethods.Clear();
 
-            DetourInited = false;
+            harmonyInstalled = false;
             Log.Info("Reverting detours finished.");
         }
 
-        private void InitDetours() {
+        private void InstallHarmony() {
             // TODO realize detouring with annotations
-            if (DetourInited) {
+            if (harmonyInstalled) {
                 return;
             }
-
-            Log.Info("Init detours");
-            bool detourFailed = false;
 
             try {
                 Log.Info("Deploying Harmony patches");
@@ -182,83 +146,35 @@ namespace TrafficManager {
 #endif
                 Assembly assembly = Assembly.GetExecutingAssembly();
 
-                HarmonyMethodStates.Clear();
-
                 // Harmony attribute-driven patching
                 Log.Info($"Performing Harmony attribute-driven patching");
                 HarmonyInst = HarmonyInstance.Create(HARMONY_ID);
                 HarmonyInst.PatchAll(assembly);
 
-                foreach (Type type in assembly.GetTypes()) {
-                    object[] attributes = type.GetCustomAttributes(typeof(HarmonyPatch), true);
-                    if (attributes.Length <= 0) {
-                        continue;
-                    }
-
-                    foreach (object attr in attributes) {
-                        HarmonyPatch harmonyPatchAttr = (HarmonyPatch)attr;
-                        MethodBase info = HarmonyUtil.GetOriginalMethod(harmonyPatchAttr.info);
-                        IntPtr ptr = info.MethodHandle.GetFunctionPointer();
-                        RedirectCallsState state = RedirectionHelper.GetState(ptr);
-                        HarmonyMethodStates[info] = state;
-                    }
-                }
-
                 // Harmony manual patching
                 Log.Info($"Performing Harmony manual patching");
 
                 foreach (ManualHarmonyPatch manualPatch in ManualHarmonyPatches) {
+#pragma warning disable
                     Log.InfoFormat(
                         "Manually patching method {0}.{1}. Prefix: {2}, Postfix: {3}, Transpiler: {4}",
                         manualPatch.method.DeclaringType.FullName,
                         manualPatch.method.Name, manualPatch.prefix?.method,
                         manualPatch.postfix?.method, manualPatch.transpiler?.method);
+#pragma warning enable
 
-                    HarmonyInst.Patch(
+                    MethodBase patch = HarmonyInst.Patch(
                         manualPatch.method,
                         manualPatch.prefix,
                         manualPatch.postfix,
                         manualPatch.transpiler);
-
-                    IntPtr ptr = manualPatch.method.MethodHandle.GetFunctionPointer();
-                    RedirectCallsState state = RedirectionHelper.GetState(ptr);
-                    HarmonyMethodStates[manualPatch.method] = state;
+                    PatchedMethods.Add(patch);
                 }
             } catch (Exception e) {
-                Log.Error("Could not deploy Harmony patches");
-                Log.Info(e.ToString());
-                Log.Info(e.StackTrace);
-                detourFailed = true;
+                Log.Error("Could not deploy Harmony patches\n"+ e.ToString());
             }
 
-            try {
-                Log.Info("Deploying attribute-driven detours");
-                DetouredMethodStates = AssemblyRedirector.Deploy();
-            } catch (Exception e) {
-                Log.Error("Could not deploy attribute-driven detours");
-                Log.Info(e.ToString());
-                Log.Info(e.StackTrace);
-                detourFailed = true;
-            }
-
-            if (detourFailed) {
-                Log.Info("Detours failed");
-                Singleton<SimulationManager>.instance.m_ThreadingWrapper.QueueMainThread(
-                    () => {
-                        UIView.library
-                              .ShowModal<ExceptionPanel>("ExceptionPanel")
-                              .SetMessage(
-                                "TM:PE failed to load",
-                                "Traffic Manager: President Edition failed to load. You can " +
-                                "continue playing but it's NOT recommended. Traffic Manager will " +
-                                "not work as expected.",
-                                true);
-                    });
-            } else {
-                Log.Info("Detours successful");
-            }
-
-            DetourInited = true;
+            harmonyInstalled = true;
         }
 
         public override void OnCreated(ILoading loading) {
@@ -272,9 +188,8 @@ namespace TrafficManager {
                 return;
             }
 
-            Detours = new List<Detour>();
             RegisteredManagers = new List<ICustomManager>();
-            DetourInited = false;
+            harmonyInstalled = false;
             CustomPathManager = new CustomPathManager();
 
             RegisterCustomManagers();
@@ -374,7 +289,7 @@ namespace TrafficManager {
                 // ignored - prevents collision with other mods
             }
 
-            RevertDetours();
+            UninstallHarmony();
             IsGameLoaded = false;
         }
 
@@ -557,7 +472,7 @@ namespace TrafficManager {
             // add "remove citizen instance" button
             UIView.GetAView().gameObject.AddComponent<RemoveCitizenInstanceButtonExtender>();
 
-            InitDetours();
+            InstallHarmony();
 
             // Log.Info("Fixing non-created nodes with problems...");
             // FixNonCreatedNodeProblems();
