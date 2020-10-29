@@ -173,6 +173,7 @@
     <Compile Include="Patch\_DefaultTool\OnToolGUIPatch.cs" />
     <Compile Include="Patch\_InfoManager\SetModePatch.cs" />
     <Compile Include="Patch\_LoadAssetPanel\OnLoadPatch.cs" />
+    <Compile Include="Patch\_NetLane\CalculateStopPositionAndDirectionPatch.cs" />
     <Compile Include="Patch\_NetSegment\CalculateSegmentPatch.cs" />
     <Compile Include="Patch\_RoadWorldInfoPanel\OnAdjustRoadButtonPatch.cs" />
     <Compile Include="State\Asset\AssetData.cs" />
