@@ -39,7 +39,7 @@ namespace TrafficManager.UI {
           IObserver<GlobalConfig>
     {
         // TODO [issue #710] Road adjust mechanism seem to have changed in Sunset Harbor DLC.
-        // activate when we know the mechinism.
+        // activate when we know the mechanism.
         private bool ReadjustPathMode => false; //ShiftIsPressed;
 
         // /// <summary>Set this to true to once call <see cref="RequestOnscreenDisplayUpdate"/>.</summary>
@@ -58,7 +58,7 @@ namespace TrafficManager.UI {
         /// <summary>Maximum error of HitPos field.</summary>
         internal const float MAX_HIT_ERROR = 2.5f;
 
-        /// <summary>Maximum detection radius of segment raycast hit position.</summary>
+        /// <summary>Maximum detection radius of segment ray-cast hit position.</summary>
         internal const float NODE_DETECTION_RADIUS = 75f;
         internal const float PRECISE_NODE_DETECTION_RADIUS = 15f;
 
@@ -66,7 +66,7 @@ namespace TrafficManager.UI {
 
         internal static ushort HoveredSegmentId;
 
-        /// <summary>The hit position of the mouse raycast.</summary>
+        /// <summary>The hit position of the mouse ray-cast.</summary>
         internal static Vector3 HitPos;
 
         internal Vector3 MousePosition => m_mousePosition; //expose protected member.
@@ -342,7 +342,7 @@ namespace TrafficManager.UI {
 
         // Overridden to disable base class behavior
         protected override void OnEnable() {
-            // If TMPE was enabled by switching back from another tool (eg: buldozer, free camera), show main menue panel.
+            // If TMPE was enabled by switching back from another tool (e.g. bulldozer, free camera), show main menu panel.
             if (ModUI.Instance != null && !ModUI.Instance.IsVisible())
                 ModUI.Instance.ShowMainMenu();
 
@@ -390,7 +390,7 @@ namespace TrafficManager.UI {
         }
 
         /// <summary>
-        /// renders presistent overlay.
+        /// renders persistent overlay.
         /// if any subtool is active it renders overlay for that subtool (e.g. node selection, segment selection, etc.)
         /// Must not call base.RenderOverlay() . Doing so may cause infinite recursion with Postfix of base.RenderOverlay()
         /// </summary>
@@ -416,12 +416,12 @@ namespace TrafficManager.UI {
 
         /// <summary>
         /// Renders overlay when no subtool is active.
-        /// May call base.RenderOverlay() without risk of infinte recursion.
+        /// May call base.RenderOverlay() without risk of infinite recursion.
         /// </summary>
         void DefaultRenderOverlay(RenderManager.CameraInfo cameraInfo)
         {
             if (!TMPELifecycle.PlayMode) {
-                return; // world info view panels are not availble in edit mode
+                return; // world info view panels are not available in edit mode
             }
             SubTools.PrioritySigns.MassEditOverlay.Show
                 = ControlIsPressed || RoadSelectionPanels.Root.ShouldShowMassEditOverlay();
@@ -600,7 +600,7 @@ namespace TrafficManager.UI {
 
         void DefaultOnToolGUI(Event e) {
             if (!TMPELifecycle.PlayMode) {
-                return; // world info view panels are not availble in edit mode
+                return; // world info view panels are not available in edit mode
             }
             if (e.type == EventType.MouseDown && e.button == 0) {
                 bool isRoad = HoveredSegmentId != 0 && HoveredSegmentId.ToSegment().Info.m_netAI is RoadBaseAI;
@@ -695,7 +695,7 @@ namespace TrafficManager.UI {
         /// Draws a half sausage at segment end.
         /// </summary>
         /// <param name="segmentId"></param>
-        /// <param name="cut">The lenght of the highlight [0~1] </param>
+        /// <param name="cut">The length of the highlight [0~1] </param>
         /// <param name="bStartNode">Determines the direction of the half sausage.</param>
         // TODO: move to UI.Helpers (Highlight)
         public void DrawCutSegmentEnd(RenderManager.CameraInfo cameraInfo,
@@ -1262,7 +1262,7 @@ namespace TrafficManager.UI {
         private static float prev_H_Fixed;
 
         /// <summary>
-        /// Calculates accurate vertical element of raycast hit position.
+        /// Calculates accurate vertical element of ray-cast hit position.
         /// </summary>
         internal static float GetAccurateHitHeight() {
             // cache result.
@@ -1946,7 +1946,7 @@ namespace TrafficManager.UI {
         }
 
         /// <summary>
-        /// Called when the onscreen hint update is due. This will request the update from the
+        /// Called when the on-screen hint update is due. This will request the update from the
         /// active Traffic Manager Tool, or show the default hint.
         /// </summary>
         public void RequestOnscreenDisplayUpdate() {
