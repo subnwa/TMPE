@@ -138,6 +138,7 @@ namespace TrafficManager.API.Manager {
         public uint laneId;
         public byte laneIndex;
         public LaneEndTransitionType type;
+        public LaneTranstionGroup laneType;
         public byte distance;
         public ushort segmentId;
         public bool startNode;
@@ -157,6 +158,7 @@ namespace TrafficManager.API.Manager {
         public void Set(uint laneId,
                         byte laneIndex,
                         LaneEndTransitionType type,
+                        LaneEndTransitionType laneType,
                         ushort segmentId,
                         bool startNode,
                         byte distance) {
@@ -171,9 +173,10 @@ namespace TrafficManager.API.Manager {
         public void Set(uint laneId,
                         byte laneIndex,
                         LaneEndTransitionType type,
+                        LaneEndTransitionType laneType,
                         ushort segmentId,
                         bool startNode) {
-            Set(laneId, laneIndex, type, segmentId, startNode, 0);
+            Set(laneId, laneIndex, type, laneType,segmentId, startNode, 0);
         }
     }
 }

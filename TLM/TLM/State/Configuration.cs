@@ -6,6 +6,8 @@ namespace TrafficManager {
     using TrafficManager.API.Traffic.Data;
     using TrafficManager.State;
     using TrafficManager.Traffic;
+    using TrafficManager.API.Manager;
+    using TrafficManager.API.Traffic.Enums;
 
     [Serializable]
     public class Configuration {
@@ -169,8 +171,8 @@ namespace TrafficManager {
             public uint lowerLaneId;
             public uint higherLaneId;
             public bool lowerStartNode;
-
-            public LaneConnection(uint lowerLaneId, uint higherLaneId, bool lowerStartNode) {
+            public LaneTranstionGroup laneTranstionGroup = LaneTranstionGroup.Both;
+            public LaneConnection(uint lowerLaneId, uint higherLaneId, LaneTranstionGroup group, bool lowerStartNode) {
                 if (lowerLaneId >= higherLaneId) {
                     throw new ArgumentException();
                 }

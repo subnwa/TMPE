@@ -381,6 +381,7 @@
     <Compile Include="UI\TransportDemandViewMode.cs" />
     <Compile Include="UI\UITransportDemand.cs" />
     <Compile Include="Util\AutoTimedTrafficLights.cs" />
+    <Compile Include="Util\EnumerableExtension.cs" />
     <Compile Include="Util\Extensions\BuildingExtensions.cs" />
     <Compile Include="Util\Extensions\CitizenExtensions.cs" />
     <Compile Include="Util\Extensions\CitizenInstanceExtensions.cs" />

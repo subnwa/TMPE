@@ -13,6 +13,9 @@ namespace TrafficManager.State {
     using TrafficManager.State.ConfigData;
     using static TrafficManager.Util.Shortcuts;
     using TrafficManager.Util.Extensions;
+    using TrafficManager.API.Manager;
+    using System.Linq;
+    using TrafficManager.Util;
 
     [Obsolete]
     public class Flags {
@@ -29,7 +32,7 @@ namespace TrafficManager.State {
         /// key 2: at start node?
         /// values: target lane id
         /// </summary>
-        internal static uint[][][] laneConnections;
+        internal static LaneConnectionData[][][] laneConnections;
 
         /// <summary>
         /// For each lane: Defines the currently set speed limit
@@ -52,7 +55,7 @@ namespace TrafficManager.State {
         private static object laneSpeedLimitLock = new object();
 
         static Flags() {
-            laneConnections = new uint[NetManager.MAX_LANE_COUNT][][];
+            laneConnections = new LaneConnectionData[NetManager.MAX_LANE_COUNT][][];
             laneSpeedLimitArray = new float?[NetManager.MAX_SEGMENT_COUNT][];
             laneSpeedLimit = new Dictionary<uint, float>();
             laneAllowedVehicleTypesArray = new ExtVehicleType?[NetManager.MAX_SEGMENT_COUNT][];
@@ -104,14 +107,14 @@ namespace TrafficManager.State {
                     Log.Info($"\tNode idx {x} ({nodeId}, seg. {segmentId}): valid? {netNode.IsValid()}");
 
                     for (int y = 0; y < laneConnections[i][x].Length; ++y) {
-                        uint laneIdOfConnection = laneConnections[i][x][y];
+                        var targetData = laneConnections[i][x][y];
 
-                        if (laneIdOfConnection == 0)
+                        if (targetData.LaneID == 0)
                             continue;
 
-                        ref NetLane netLaneOfConnection = ref laneIdOfConnection.ToLane();
+                        ref NetLane netLaneOfConnection = ref targetData.LaneID.ToLane();
 
-                        Log.Info($"\t\tEntry {y}: {laneIdOfConnection} (valid? {netLaneOfConnection.IsValidWithSegment()})");
+                        Log.Info($"\t\tEntry {y}: {targetData} (valid? {netLaneOfConnection.IsValidWithSegment()})");
                     }
                 }
             }
@@ -236,6 +239,8 @@ namespace TrafficManager.State {
             return true;
         }
 
+        #region lane connections
+
         /// <summary>
         /// Removes lane connections that point from lane <paramref name="sourceLaneId"/> to lane
         /// <paramref name="targetLaneId"/> at node <paramref name="startNode"/>.
@@ -257,34 +262,19 @@ namespace TrafficManager.State {
                 laneConnections[sourceLaneId][nodeArrayIndex] == null)
                 return false;
 
-            uint[] srcLaneConnections = laneConnections[sourceLaneId][nodeArrayIndex];
+            var connections0 = laneConnections[sourceLaneId][nodeArrayIndex];
+            var connections1 = connections0.Where(item => item.LaneID != targetLaneId).ToArray();
+            bool ret = connections1.Length < connections0.Length;
 
-            bool ret = false;
-            int remainingConnections = 0;
-            for (int i = 0; i < srcLaneConnections.Length; ++i) {
-                if (srcLaneConnections[i] != targetLaneId) {
-                    ++remainingConnections;
-                } else {
-                    ret = true;
-                    srcLaneConnections[i] = 0;
-                }
-            }
-
-            if (remainingConnections <= 0) {
+            if(connections1.Length == 0) {
                 laneConnections[sourceLaneId][nodeArrayIndex] = null;
                 if (laneConnections[sourceLaneId][1 - nodeArrayIndex] == null)
                     laneConnections[sourceLaneId] = null; // total cleanup
                 return ret;
             }
 
-            if (remainingConnections != srcLaneConnections.Length) {
-                laneConnections[sourceLaneId][nodeArrayIndex] = new uint[remainingConnections];
-                int k = 0;
-                for (int i = 0; i < srcLaneConnections.Length; ++i) {
-                    if (srcLaneConnections[i] == 0)
-                        continue;
-                    laneConnections[sourceLaneId][nodeArrayIndex][k++] = srcLaneConnections[i];
-                }
+            if (ret) {
+                laneConnections[sourceLaneId][nodeArrayIndex] = connections1;
             }
 
             return ret;
@@ -392,7 +382,7 @@ namespace TrafficManager.State {
                 }
 
                 for (int i = 0; i < laneConnections[laneId][k].Length; ++i) {
-                    uint otherLaneId = laneConnections[laneId][k][i];
+                    uint otherLaneId = laneConnections[laneId][k][i].LaneID;
                     LaneConnectionManager.Instance.GetCommonNodeId(
                         laneId,
                         otherLaneId,
@@ -423,23 +413,10 @@ namespace TrafficManager.State {
         /// <param name="lane2Id"></param>
         /// <param name="startNode1"></param>
         /// <returns></returns>
-        internal static bool AddLaneConnection(uint lane1Id, uint lane2Id, bool startNode1) {
-            bool lane1Valid = CheckLane(lane1Id);
-            bool lane2Valid = CheckLane(lane2Id);
-
-            if (!lane1Valid) {
-                // remove all incoming/outgoing lane connections
-                RemoveLaneConnections(lane1Id);
-            }
-
-            if (!lane2Valid) {
-                // remove all incoming/outgoing lane connections
-                RemoveLaneConnections(lane2Id);
-            }
-
-            if (!lane1Valid || !lane2Valid) {
+        internal static bool AddLaneConnection(uint lane1Id, uint lane2Id, bool startNode1, LaneTranstionGroup group) {
+            bool valid = ValidateLane(lane1Id) && ValidateLane(lane2Id);
+            if(!valid)
                 return false;
-            }
 
             LaneConnectionManager.Instance.GetCommonNodeId(
                 lane1Id,
@@ -449,14 +426,56 @@ namespace TrafficManager.State {
                 out bool startNode2); // TODO refactor
 
             if (commonNodeId != 0) {
-                CreateLaneConnection(lane1Id, lane2Id, startNode1);
-                CreateLaneConnection(lane2Id, lane1Id, startNode2);
+                CreateLaneConnection(lane1Id, lane2Id, startNode1, group);
+                CreateLaneConnection(lane2Id, lane1Id, startNode2, group);
 
                 return true;
             }
 
             return false;
         }
+
+        static bool IsStartNode(uint laneId, ushort nodeId) {
+            return ExtSegmentManager.Instance.IsStartNode(laneId.ToLane().m_segment, nodeId)
+                ?? throw new Exception("lane does not have node:" + nodeId);
+        }
+
+        static int GetLaneNodeIndex(uint laneId, ushort nodeId) =>
+            GetLaneNodeIndex(IsStartNode(laneId, nodeId));
+
+        static int GetLaneNodeIndex(bool startNode) => startNode ? 0 : 1;
+
+        internal static LaneConnectionData[] GetLaneConnections(uint sourceLaneId, ushort nodeId) =>
+            laneConnections[sourceLaneId]?[GetLaneNodeIndex(sourceLaneId, nodeId)];
+
+        internal static LaneConnectionData[] GetLaneConnections(uint sourceLaneId, bool startNode) =>
+            laneConnections[sourceLaneId]?[GetLaneNodeIndex(startNode)];
+
+        internal static bool ValidateLane(uint laneId) {
+            bool valid = CheckLane(laneId);
+            if(!valid)
+                RemoveLaneConnections(laneId);
+            return valid;
+        }
+
+        /// <param name="group">set to None for no requirement.</param>
+        internal static bool HasLaneConnection(
+            uint sourceLaneId, uint targetLaneId, ushort nodeId, LaneTranstionGroup group = LaneTranstionGroup.None) {
+            try {
+                bool valid = ValidateLane(sourceLaneId) && ValidateLane(targetLaneId);
+                if (!valid)
+                    return false;
+
+                var connections = GetLaneConnections(sourceLaneId, nodeId);
+                return
+                    connections != null &&
+                    connections.Any(item => item.LaneID == targetLaneId && (item.TranstionGroup & group) == group);
+            } catch(Exception ex) {
+                ex.LogException();
+                return false;
+            }
+        }
+
 
         /// <summary>
         /// Adds a lane connection from lane <paramref name="sourceLaneId"/> to lane <paramref name="targetLaneId"/> at node <paramref name="startNode"/>
@@ -467,26 +486,25 @@ namespace TrafficManager.State {
         /// <param name="startNode"></param>
         private static void CreateLaneConnection(uint sourceLaneId,
                                                  uint targetLaneId,
-                                                 bool startNode) {
-            if (laneConnections[sourceLaneId] == null) {
-                laneConnections[sourceLaneId] = new uint[2][];
+                                                 bool startNode,
+                                                 LaneTranstionGroup group) {
+            laneConnections[sourceLaneId] ??= new LaneConnectionData[2][];
+            ref var connections = ref laneConnections[sourceLaneId][GetLaneNodeIndex(startNode)];
+
+            if(connections != null) {
+                for(int i = 0; i < connections.Length; ++i) {
+                    if(connections[i].LaneID == targetLaneId) {
+                        connections[i].TranstionGroup |= group;
+                        return;
+                    }
+                }
             }
 
-            int nodeArrayIndex = startNode ? 0 : 1;
-
-            if (laneConnections[sourceLaneId][nodeArrayIndex] == null) {
-                laneConnections[sourceLaneId][nodeArrayIndex] = new uint[] { targetLaneId };
-                return;
-            }
-
-            uint[] oldConnections = laneConnections[sourceLaneId][nodeArrayIndex];
-            laneConnections[sourceLaneId][nodeArrayIndex] = new uint[oldConnections.Length + 1];
-            Array.Copy(
-                oldConnections,
-                laneConnections[sourceLaneId][nodeArrayIndex],
-                oldConnections.Length);
-            laneConnections[sourceLaneId][nodeArrayIndex][oldConnections.Length] = targetLaneId;
+            var newConnection = new LaneConnectionData { LaneID = targetLaneId, TranstionGroup = group };
+            connections = connections.AppendOrCreate(newConnection);
         }
+
+        #endregion
 
         internal static bool CheckLane(uint laneId) {
             // TODO refactor

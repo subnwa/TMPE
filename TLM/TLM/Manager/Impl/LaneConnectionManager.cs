@@ -59,9 +59,33 @@ namespace TrafficManager.Manager.Impl {
 
             int nodeArrayIndex = sourceStartNode ? 0 : 1;
 
-            uint[] connectedLanes = Flags.laneConnections[sourceLaneId][nodeArrayIndex];
+            LaneConnectionData[] connectedLanes = Flags.laneConnections[sourceLaneId][nodeArrayIndex];
             return connectedLanes != null
-                   && connectedLanes.Any(laneId => laneId == targetLaneId);
+                   && connectedLanes.Any(item => item.LaneID == targetLaneId);
+        }
+
+        /// <summary>
+        /// Checks if traffic may flow from source lane to target lane according to setup lane connections
+        /// </summary>
+        /// <param name="sourceLaneId"></param>
+        /// <param name="targetLaneId"></param>
+        /// <param name="sourceStartNode">(optional) check at start node of source lane?</param>
+        /// <returns></returns>
+        public bool AreLanesConnected(uint sourceLaneId, uint targetLaneId, bool sourceStartNode, LaneTranstionGroup group) {
+            if(!Options.laneConnectorEnabled) {
+                return true;
+            }
+
+            if(targetLaneId == 0 || Flags.laneConnections[sourceLaneId] == null) {
+                return false;
+            }
+
+            int nodeArrayIndex = sourceStartNode ? 0 : 1;
+
+            return Flags.AddLaneConnection
+            LaneConnectionData[] connectedLanes =  Flags.laneConnections[sourceLaneId][nodeArrayIndex];
+            return connectedLanes != null
+                   && connectedLanes.Any(item => item.LaneID == targetLaneId);
         }
 
         /// <summary>
@@ -162,11 +186,11 @@ namespace TrafficManager.Manager.Impl {
 
             uint sourceLaneId = netManager.m_segments.m_buffer[segmentId].m_lanes;
             while (sourceLaneId != 0) {
-                uint[] targetLaneIds = GetLaneConnections(sourceLaneId, startNode);
+                LaneConnectionData[] targetLaneConnections = GetLaneConnections(sourceLaneId, startNode);
 
-                if (targetLaneIds != null) {
-                    foreach (uint targetLaneId in targetLaneIds) {
-                        if (netManager.m_lanes.m_buffer[targetLaneId].m_segment == segmentId) {
+                if (targetLaneConnections != null) {
+                    foreach (LaneConnectionData connection in targetLaneConnections) {
+                        if (netManager.m_lanes.m_buffer[connection.LaneID].m_segment == segmentId) {
                             return true;
                         }
                     }
@@ -201,7 +225,7 @@ namespace TrafficManager.Manager.Impl {
         /// </summary>
         /// <param name="laneId"></param>
         /// <returns></returns>
-        internal uint[] GetLaneConnections(uint laneId, bool startNode) {
+        internal LaneConnectionData[] GetLaneConnections(uint laneId, bool startNode) {
             if (!Options.laneConnectorEnabled) {
                 return null;
             }
@@ -393,12 +417,13 @@ namespace TrafficManager.Manager.Impl {
         /// <returns></returns>
         internal bool AddLaneConnection(uint sourceLaneId,
                                         uint targetLaneId,
-                                        bool sourceStartNode) {
+                                        bool sourceStartNode,
+                                        LaneTranstionGroup group) {
             if (sourceLaneId == targetLaneId) {
                 return false;
             }
 
-            bool ret = Flags.AddLaneConnection(sourceLaneId, targetLaneId, sourceStartNode);
+            bool ret = Flags.AddLaneConnection(sourceLaneId, targetLaneId, sourceStartNode, group);
 
 #if DEBUG
             bool logLaneConnections = DebugSwitch.LaneConnections.Get();
@@ -829,7 +854,7 @@ namespace TrafficManager.Manager.Impl {
 #if DEBUGLOAD
                     Log._Debug($"Loading lane connection: lane {conn.lowerLaneId} -> {conn.higherLaneId}");
 #endif
-                    AddLaneConnection(conn.lowerLaneId, conn.higherLaneId, conn.lowerStartNode);
+                    AddLaneConnection(conn.lowerLaneId, conn.higherLaneId, conn.lowerStartNode, conn.laneTranstionGroup);
                 }
                 catch (Exception e) {
                     // ignore, as it's probably corrupt save data. it'll be culled on next save
@@ -844,17 +869,17 @@ namespace TrafficManager.Manager.Impl {
         public List<Configuration.LaneConnection> SaveData(ref bool success) {
             var ret = new List<Configuration.LaneConnection>();
 
-            for (uint i = 0; i < Singleton<NetManager>.instance.m_lanes.m_buffer.Length; i++) {
+            for (uint laneId = 0; laneId < Singleton<NetManager>.instance.m_lanes.m_buffer.Length; laneId++) {
                 try {
-                    if (Flags.laneConnections[i] == null) {
+                    if (Flags.laneConnections[laneId] == null) {
                         continue;
                     }
 
                     for (int nodeArrayIndex = 0; nodeArrayIndex <= 1; ++nodeArrayIndex) {
-                        uint[] connectedLaneIds = Flags.laneConnections[i][nodeArrayIndex];
+                        LaneConnectionData[] connectedLanes = Flags.laneConnections[laneId][nodeArrayIndex];
                         bool startNode = nodeArrayIndex == 0;
 
-                        if (connectedLaneIds == null) {
+                        if (connectedLanes == null) {
                             continue;
                         }
 
@@ -866,12 +891,12 @@ namespace TrafficManager.Manager.Impl {
                         //     where otherHigherLaneId.ToLane().IsValid()
                         //     select new Configuration.LaneConnection(i, otherHigherLaneId, startNode));
                         //-------------------------------------------------------------
-                        foreach (uint otherHigherLaneId in connectedLaneIds) {
-                            if (otherHigherLaneId <= i) {
+                        foreach (LaneConnectionData otherHigherLaneData in connectedLanes) {
+                            if (otherHigherLaneData.LaneID <= laneId) {
                                 continue;
                             }
 
-                            ref NetLane otherHigherLane = ref otherHigherLaneId.ToLane();
+                            ref NetLane otherHigherLane = ref otherHigherLaneData.LaneID.ToLane();
                             if (!otherHigherLane.IsValidWithSegment()) {
                                 continue;
                             }
@@ -881,14 +906,15 @@ namespace TrafficManager.Manager.Impl {
 #endif
                             ret.Add(
                                 new Configuration.LaneConnection(
-                                    i,
-                                    otherHigherLaneId,
-                                    startNode));
+                                    lowerLaneId: laneId,
+                                    higherLaneId: otherHigherLaneData.LaneID,
+                                    group: otherHigherLaneData.TranstionGroup,
+                                    lowerStartNode: startNode));
                         }
                     }
                 }
                 catch (Exception e) {
-                    Log.Error($"Exception occurred while saving lane data @ {i}: {e.ToString()}");
+                    Log.Error($"Exception occurred while saving lane data @ {laneId}: {e.ToString()}");
                     success = false;
                 }
             }
