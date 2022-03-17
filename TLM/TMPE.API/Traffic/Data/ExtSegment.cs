@@ -35,7 +35,7 @@ namespace TrafficManager.API.Traffic.Data {
         /// <summary>
         /// The Lane IDs as an array for fast lookup by index.
         /// </summary>
-        public uint[] lanes;
+        public uint[] lanesIds;
 
         public ExtSegment(ushort segmentId) {
             this.segmentId = segmentId;
@@ -44,7 +44,7 @@ namespace TrafficManager.API.Traffic.Data {
             highway = false;
             buslane = false;
             infoIndex = 0;
-            lanes = null;
+            lanesIds = null;
         }
 
         public override string ToString() {
@@ -64,7 +64,7 @@ namespace TrafficManager.API.Traffic.Data {
             highway = false;
             buslane = false;
             infoIndex = 0;
-            lanes = null;
+            lanesIds = null;
         }
 
         public bool Equals(ExtSegment otherSeg) {

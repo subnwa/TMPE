@@ -54,6 +54,9 @@ namespace TrafficManager.Manager.Impl {
         }
 
         private void Reset(ref ExtSegment extSegment) {
+            foreach(var laneId in extSegment.lanesIds) {
+                ExtLaneManager.Instance.Reset(laneId);
+            }
             extSegment.Reset();
         }
 
@@ -73,7 +76,7 @@ namespace TrafficManager.Manager.Impl {
             if (laneIndex < 0 || !CheckNetInfo(ref extSegment))
                 return 0;
 
-            return laneIndex < extSegment.lanes?.Length ? extSegment.lanes[laneIndex] : 0;
+            return laneIndex < extSegment.lanesIds?.Length ? extSegment.lanesIds[laneIndex] : 0;
         }
 
         internal int GetLaneIndex(ushort segmentId, uint laneId) {
@@ -81,7 +84,7 @@ namespace TrafficManager.Manager.Impl {
             if (!CheckNetInfo(ref extSegment))
                 return -1;
 
-            return Array.IndexOf(extSegment.lanes, laneId);
+            return Array.IndexOf(extSegment.lanesIds, laneId);
         }
 
         public void Recalculate(ushort segmentId) {
@@ -124,7 +127,7 @@ namespace TrafficManager.Manager.Impl {
             extSegment.oneWay = CalculateIsOneWay(segmentId);
             extSegment.highway = CalculateIsHighway(segmentId);
             extSegment.buslane = CalculateHasBusLane(segmentId);
-            extSegment.lanes = CalculateLanes(ref netSegment);
+            extSegment.lanesIds = CalculateLanes(ref netSegment);
 
             extSegment.infoIndex = netSegment.m_infoIndex;
 
