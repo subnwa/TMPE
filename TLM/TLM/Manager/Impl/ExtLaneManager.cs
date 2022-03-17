@@ -24,7 +24,7 @@ namespace TrafficManager.Manager.Impl {
 
         public static ExtLaneManager Instance { get; }
 
-        internal void Reset(uint laneId) => lanes_[laneId].Reset(); // TODO: call when lane is deleted.
+        internal void Reset(uint laneId) => lanes_[laneId].Reset(); 
         public int GetLaneIndex(uint laneId) => lanes_[laneId].LaneIndex;
 
         public NetInfo.Lane GetLaneInfo(uint laneId) {

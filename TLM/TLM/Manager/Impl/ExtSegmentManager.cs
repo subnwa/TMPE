@@ -54,9 +54,6 @@ namespace TrafficManager.Manager.Impl {
         }
 
         private void Reset(ref ExtSegment extSegment) {
-            foreach(var laneId in extSegment.lanesIds) {
-                ExtLaneManager.Instance.Reset(laneId);
-            }
             extSegment.Reset();
         }
 
