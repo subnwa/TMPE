@@ -9,6 +9,6 @@ namespace TrafficManager.Patch._NetLane {
     [HarmonyPatch(typeof(NetLane), "ReleaseLaneImplementation")]
     internal static class ReleaseLaneImplementationPatch {
         public static event Action<uint> OnLaneReleased;
-        static void Prefix(uint lane) => OnLaneReleased(lane);
+        static void Prefix(uint lane) => OnLaneReleased?.Invoke(lane);
     }
 }
