@@ -744,13 +744,10 @@ namespace TrafficManager.Manager.Impl {
                                     // lane may be mixed car+tram
                                     bool nextHasConnections =
                                         LaneConnectionManager.Instance.HasConnections(
-                                            nextLaneId,
-                                            isNodeStartNodeOfNextSegment);
+                                            nextLaneId, isNodeStartNodeOfNextSegment, LaneEndTransitionGroup.Track);
                                     if (nextHasConnections) {
                                         bool connected = LaneConnectionManager.Instance.AreLanesConnected(
-                                                nextLaneId,
-                                                prevLaneId,
-                                                isNodeStartNodeOfNextSegment);
+                                                nextLaneId, prevLaneId, isNodeStartNodeOfNextSegment, LaneEndTransitionGroup.Track);
                                         if (connected) {
                                             // check for lane connections
                                             if (numNextLaneConnectionTransitionDatas < MAX_NUM_TRANSITIONS) {
@@ -864,13 +861,10 @@ namespace TrafficManager.Manager.Impl {
                                     bool connected = true;
                                     bool nextHasConnections =
                                         LaneConnectionManager.Instance.HasConnections(
-                                            nextLaneId,
-                                            isNodeStartNodeOfNextSegment);
+                                            nextLaneId, isNodeStartNodeOfNextSegment, LaneEndTransitionGroup.Car);
                                     if (nextHasConnections) {
                                         connected = LaneConnectionManager.Instance.AreLanesConnected(
-                                                nextLaneId,
-                                                prevLaneId,
-                                                isNodeStartNodeOfNextSegment);
+                                                nextLaneId, prevLaneId, isNodeStartNodeOfNextSegment, LaneEndTransitionGroup.Car);
 
                                         // check for lane connections
                                         if (connected) {
@@ -1370,10 +1364,10 @@ namespace TrafficManager.Manager.Impl {
                                     }
 
                                     // skip lanes having lane connections
-                                    // in highway-rules HasConnections() gives the same result as HasOutgoingConnections but faster.
-                                    if (LaneConnectionManager.Instance.HasConnections(
+                                    if (LaneConnectionManager.Instance.HasOutgoingConnections(
                                         nextCompatibleTransitionDatas[nextTransitionIndex].laneId,
-                                        isNodeStartNodeOfNextSegment)) {
+                                        isNodeStartNodeOfNextSegment,
+                                        LaneEndTransitionGroup.Car)) {
                                         int laneConnectionTransIndex =
                                             compatibleLaneIndexToLaneConnectionIndex[nextTransitionIndex];
 
@@ -1979,7 +1973,8 @@ namespace TrafficManager.Manager.Impl {
                                 // skip lanes having lane connections
                                 if (LaneConnectionManager.Instance.HasOutgoingConnections(
                                     nextCompatibleTransitionDatas[nextTransitionIndex].laneId,
-                                    isNodeStartNodeOfNextSegment)) {
+                                    isNodeStartNodeOfNextSegment,
+                                    LaneEndTransitionGroup.Car)) {
                                     int laneConnectionTransIndex =
                                         compatibleLaneIndexToLaneConnectionIndex[nextTransitionIndex];
 
