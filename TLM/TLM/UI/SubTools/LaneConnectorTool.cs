@@ -1251,7 +1251,7 @@ namespace TrafficManager.UI.SubTools {
                 }
 
                 uint[] connections =
-                    LaneConnectionManager.Instance.GetLaneConnections(
+                    LaneConnectionManager.Instance.GetLaneCarConnections(
                         laneEnd1.LaneId,
                         laneEnd1.StartNode);
 

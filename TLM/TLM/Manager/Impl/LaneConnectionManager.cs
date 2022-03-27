@@ -66,13 +66,32 @@ namespace TrafficManager.Manager.Impl {
             return valid;
         }
 
-        /// <summary>
-        /// Checks if traffic may flow from source lane to target lane according to setup lane connections
-        /// </summary>
-        /// <param name="sourceStartNode">check at start node of source lane?</param>
+        [Obsolete("use the overload that takes group ", error: true)]
         public bool AreLanesConnected(uint sourceLaneId, uint targetLaneId, bool sourceStartNode) {
             if (!Options.laneConnectorEnabled) {
+                return false;
+            }
+
+            LaneEnd key = new(sourceLaneId, sourceStartNode);
+            if (connectionDataBase_.TryGetValue(key, out var collection)) {
+                int n = collection.Length;
+                for (int i = 0; i < n; ++i) {
+                    ref var connection = ref collection.Connections[i];
+                    if (!connection.IsEmpty && connection.LaneId == targetLaneId)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        public bool AreLanesConnected(uint sourceLaneId, uint targetLaneId, bool sourceStartNode, LaneEndTransitionGroup group) {
+            if (!Options.laneConnectorEnabled) {
                 return true;
+            }
+
+            if(group == 0) {
+                Log.Error($"AreLanesConnected(): bad group argument : {group}");
+                return false;
             }
 
             bool valid = ValidateLane(sourceLaneId) & ValidateLane(targetLaneId);
@@ -80,7 +99,7 @@ namespace TrafficManager.Manager.Impl {
                 return false;
             }
 
-            return connectionDataBase_.IsConnectedTo(sourceLaneId, targetLaneId, sourceStartNode);
+            return connectionDataBase_.IsConnectedTo(sourceLaneId, targetLaneId, sourceStartNode, group);
         }
 
         /// <summary>
@@ -105,45 +124,35 @@ namespace TrafficManager.Manager.Impl {
             throw new Exception($"Unreachable code. sourceLaneId:{sourceLaneId}, segmentId:{segmentId} ");
         }
 
-        public bool HasOutgoingConnections(uint sourceLaneId) {
+        public bool HasOutgoingConnections(uint sourceLaneId, LaneEndTransitionGroup group) {
             if (!Options.laneConnectorEnabled) {
                 return false;
             }
 
-            return HasOutgoingConnections(sourceLaneId, IsHeadingTowardsStartNode(sourceLaneId));
+            return HasOutgoingConnections(sourceLaneId, IsHeadingTowardsStartNode(sourceLaneId), group);
         }
 
-        /// <summary>
-        /// Determines if the given lane has incoming/outgoing connections
-        /// Performance note: This act as HasOutgoingConnections for uni-directional lanes but faster
-        /// </summary>
+        [Obsolete("use the overload that takes group ", error: true)]
         public bool HasConnections(uint laneId, bool startNode) =>
             Options.laneConnectorEnabled && connectionDataBase_.ContainsKey(new LaneEnd(laneId, startNode));
 
-        /// <summary>
-        /// Determines if the given lane has outgoing connections
-        /// Performance note: This act as HasOutgoingConnections for uni-directional lanes but faster
-        /// </summary>
-        public bool HasOutgoingConnections(uint sourceLaneId, bool startNode) {
-            if (!Options.laneConnectorEnabled) {
-                return false;
-            }
-
-            LaneEnd key = new(sourceLaneId, startNode);
-            if (connectionDataBase_.TryGetValue(key, out var targets)) {
-                int n = targets.Length;
-                for (int i = 0; i < n; ++i) {
-                    if (targets[i].Enabled)
-                        return true;
-                }
-            }
-            return false;
+        public bool HasConnections(uint laneId, bool startNode, LaneEndTransitionGroup group) {
+            return Options.laneConnectorEnabled &&
+                connectionDataBase_.TryGetValue(new(laneId, startNode), out var collection) &&
+                (collection.HasConnectionCached & group) != 0;
         }
 
-        /// <summary>
-        /// Determines if there exist custom lane connections at the specified node
-        /// </summary>
-        public bool HasNodeConnections(ushort nodeId) {
+        public bool HasOutgoingConnections(uint sourceLaneId, bool startNode, LaneEndTransitionGroup group) {
+            return Options.laneConnectorEnabled &&
+                connectionDataBase_.TryGetValue(new(sourceLaneId, startNode), out var collection) &&
+                (collection.HasOutoingCached & group) != 0;
+        }
+
+        [Obsolete("use the overload that takes group ", error: true)]
+        public bool HasNodeConnections(ushort nodeId) =>
+            HasNodeConnections(nodeId, LaneEndTransitionGroup.All);
+
+        public bool HasNodeConnections(ushort nodeId, LaneEndTransitionGroup group) {
             if (!Options.laneConnectorEnabled) {
                 return false;
             }
@@ -156,8 +165,9 @@ namespace TrafficManager.Manager.Impl {
                     bool startNode = netSegment.IsStartnode(nodeId);
                     foreach (LaneIdAndIndex laneIdAndIndex in netSegment.GetSegmentLaneIdsAndLaneIndexes()) {
                         LaneEnd key = new(laneIdAndIndex.laneId, startNode);
-                        if (connectionDataBase_.ContainsKey(key)) {
-                            return true;
+                        if (connectionDataBase_.TryGetValue(key, out var collection) &&
+                            (collection.HasConnectionCached & group) != 0) {
+                                return true;
                         }
                     }
                 }
@@ -174,7 +184,7 @@ namespace TrafficManager.Manager.Impl {
 
             uint sourceLaneId = segmentId.ToSegment().m_lanes;
             while (sourceLaneId != 0) {
-                uint[] targetLaneIds = GetLaneConnections(sourceLaneId, startNode);
+                uint[] targetLaneIds = GetLaneCarConnections(sourceLaneId, startNode);
 
                 if (targetLaneIds != null) {
                     foreach (uint targetLaneId in targetLaneIds) {
@@ -194,7 +204,7 @@ namespace TrafficManager.Manager.Impl {
         /// Gets all lane connections for the given lane
         /// Note: Not performance critical
         /// </summary>
-        internal uint[] GetLaneConnections(uint laneId, bool startNode) {
+        internal uint[] GetLaneCarConnections(uint laneId, bool startNode) {
             if (!Options.laneConnectorEnabled) {
                 return null;
             }
@@ -205,18 +215,19 @@ namespace TrafficManager.Manager.Impl {
 
             LaneEnd key = new(laneId, startNode);
             if (connectionDataBase_.TryGetValue(key, out var targets)) {
-                return targets
-                .Where(item => item.Enabled)
+                return targets.Connections
+                .Where(item => item.Has(LaneEndTransitionGroup.Car))
                 .Select(item => item.LaneId)
                 .ToArray();
             }
             return null;
         }
 
-        /// <summary>
-        /// Removes the lane connection from source lane to target lane.
-        /// </summary>
-        internal bool RemoveLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode) {
+        [Obsolete("use the overload that takes group ", error: true)]
+        internal bool RemoveLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode) =>
+            RemoveLaneConnection(sourceLaneId, targetLaneId, sourceStartNode, LaneEndTransitionGroup.All);
+
+        internal bool RemoveLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode, LaneEndTransitionGroup group) {
 #if DEBUG
             bool logLaneConnections = DebugSwitch.LaneConnections.Get();
 #else
@@ -228,6 +239,11 @@ namespace TrafficManager.Manager.Impl {
                            $"{sourceStartNode}) called.");
             }
 
+            if (group == 0) {
+                Log.Error($"AreLanesConnected(): bad group argument : {group}");
+                return false;
+            }
+
             bool valid = ValidateLane(sourceLaneId) & ValidateLane(targetLaneId);
             if (!valid) {
                 return false;
@@ -236,7 +252,7 @@ namespace TrafficManager.Manager.Impl {
             ushort sourceSegmentId = sourceLaneId.ToLane().m_segment;
             ushort targetSegmentId = targetLaneId.ToLane().m_segment;
             ushort nodeId = sourceSegmentId.ToSegment().GetNodeId(sourceStartNode);
-            var result = connectionDataBase_.Disconnect(sourceLaneId, targetLaneId, nodeId);
+            var result = connectionDataBase_.Disconnect(sourceLaneId, targetLaneId, nodeId, group);
 
             if (logLaneConnections) {
                 Log._Debug($"LaneConnectionManager.RemoveLaneConnection({sourceLaneId}, {targetLaneId}, " +
@@ -313,8 +329,7 @@ namespace TrafficManager.Manager.Impl {
                            $"{startNode}) called.");
             }
 
-            LaneEnd key = new(laneId, startNode);
-            connectionDataBase_.Remove(key);
+            connectionDataBase_.RemoveConnections(laneId, startNode);
 
             if (recalcAndPublish) {
                 ushort segment = laneId.ToLane().m_segment;
@@ -326,14 +341,11 @@ namespace TrafficManager.Manager.Impl {
             }
         }
 
-        /// <summary>
-        /// Adds a lane connection between two lanes
-        /// </summary>
-        /// <param name="sourceLaneId">From lane id</param>
-        /// <param name="targetLaneId">To lane id</param>
-        /// <param name="sourceStartNode">The affected node</param>
-        /// <returns></returns>
-        internal bool AddLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode) {
+        [Obsolete("use the overload that takes group ", error: true)]
+        internal bool AddLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode) =>
+            AddLaneConnection(sourceLaneId, targetLaneId, sourceStartNode, LaneEndTransitionGroup.All);
+
+        internal bool AddLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode, LaneEndTransitionGroup group) {
             if (sourceLaneId == targetLaneId) {
                 return false;
             }
@@ -346,8 +358,8 @@ namespace TrafficManager.Manager.Impl {
             ushort sourceSegmentId = sourceLaneId.ToLane().m_segment;
             ushort targetSegmentId = targetLaneId.ToLane().m_segment;
             ushort nodeId = sourceSegmentId.ToSegment().GetNodeId(sourceStartNode);
-            connectionDataBase_.ConnectTo(sourceLaneId, targetLaneId, nodeId);
-            Assert(AreLanesConnected(sourceLaneId, targetLaneId, sourceStartNode), $"AreLanesConnected({sourceLaneId}, {targetLaneId}, {sourceStartNode})");
+            connectionDataBase_.ConnectTo(sourceLaneId, targetLaneId, nodeId, group);
+            Assert(AreLanesConnected(sourceLaneId, targetLaneId, sourceStartNode, group), $"AreLanesConnected({sourceLaneId}, {targetLaneId}, {sourceStartNode}, {group})");
 
 #if DEBUG
             bool logLaneConnections = DebugSwitch.LaneConnections.Get();
@@ -356,11 +368,8 @@ namespace TrafficManager.Manager.Impl {
 #endif
 
             if (logLaneConnections) {
-                Log._Debug($"LaneConnectionManager.AddLaneConnection({sourceLaneId}, " +
-                           $"{targetLaneId}, {sourceStartNode})");
+                Log._Debug($"LaneConnectionManager.AddLaneConnection({sourceLaneId}, {targetLaneId}, {sourceStartNode}, {group})");
             }
-
-
 
             RecalculateLaneArrows(sourceLaneId, nodeId, sourceStartNode);
 
@@ -527,7 +536,7 @@ namespace TrafficManager.Manager.Impl {
                 return;
             }
 
-            if (!HasOutgoingConnections(laneId, startNode)) {
+            if (!HasOutgoingConnections(laneId, startNode, LaneEndTransitionGroup.Car)) {
                 if (logLaneConnections) {
                     Log._Debug($"LaneConnectionManager.RecalculateLaneArrows({laneId}, {nodeId}): " +
                                $"lane {laneId} does not have outgoing connections");
@@ -649,7 +658,7 @@ namespace TrafficManager.Manager.Impl {
                                 $"processing connected segment {otherSegmentId}: checking lane {curLaneId}");
                         }
 
-                        if (AreLanesConnected(laneId, curLaneId, startNode)) {
+                        if (AreLanesConnected(laneId, curLaneId, startNode, LaneEndTransitionGroup.Car)) {
                             if (logLaneConnections) {
                                 Log._Debug(
                                     $"LaneConnectionManager.RecalculateLaneArrows({laneId}, {nodeId}): " +
@@ -745,13 +754,16 @@ namespace TrafficManager.Manager.Impl {
 #if DEBUGLOAD
                     Log._Debug($"Loading lane connection: lane {conn.sourceLaneId} -> {conn.targetLaneId}");
 #endif
-                    AddLaneConnection(conn.sourceLaneId, conn.targetLaneId, conn.sourceStartNode);
                     if (conn.Legacy) {
+                        AddLaneConnection(conn.sourceLaneId, conn.targetLaneId, conn.sourceStartNode, LaneEndTransitionGroup.All);
                         ushort segmentId = conn.sourceLaneId.ToLane().m_segment;
                         ushort nodeId = segmentId.ToSegment().GetNodeId(conn.sourceStartNode);
                         bool targetStartNode = conn.targetLaneId.ToLane().IsStartNode(nodeId);
-                        AddLaneConnection(conn.targetLaneId, conn.sourceLaneId, targetStartNode);
+                        AddLaneConnection(conn.targetLaneId, conn.sourceLaneId, targetStartNode, LaneEndTransitionGroup.All);
+                    } else {
+                        AddLaneConnection(conn.sourceLaneId, conn.targetLaneId, conn.sourceStartNode, conn.group);
                     }
+
                 } catch (Exception e) {
                     // ignore, as it's probably corrupt save data. it'll be culled on next save
                     Log.Error($"Error loading data from lane connection: {e}");
@@ -768,9 +780,9 @@ namespace TrafficManager.Manager.Impl {
             foreach (var pair in connectionDataBase_) {
                 LaneEnd source = pair.Key;
                 try {
-                    var targets = pair.Value;
-                    foreach (var target in pair.Value) {
-                        if (!ValidateLane(target.LaneId)) {
+                    var collection = pair.Value;
+                    foreach (var target in collection.Connections) {
+                        if (!ValidateLane(target.LaneId) || target.IsEmpty) {
                             continue;
                         }
 #if DEBUGSAVE
@@ -780,7 +792,8 @@ namespace TrafficManager.Manager.Impl {
                             new Configuration.LaneConnection(
                                 source.LaneId,
                                 target.LaneId,
-                                source.StartNode));
+                                source.StartNode,
+                                target.Group));
                     }
                 } catch (Exception e) {
                     Log.Error($"Exception occurred while saving lane data @ {source.LaneId}: {e.ToString()}");

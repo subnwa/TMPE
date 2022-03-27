@@ -1,3 +1,5 @@
+using System;
+
 namespace TrafficManager.API.Manager {
     public interface ILaneConnectionManager {
         // TODO define me!
@@ -8,6 +10,7 @@ namespace TrafficManager.API.Manager {
 
         /// <summary>
         /// Determines whether u-turn connections exist for the given segment end.
+        /// Note: Only cars can make UTurn
         /// </summary>
         /// <param name="segmentId">segment id</param>
         /// <param name="startNode">at start node?</param>
@@ -17,18 +20,21 @@ namespace TrafficManager.API.Manager {
         /// <summary>
         /// Determines if there exist custom lane connections at the specified node.
         /// </summary>
+        [Obsolete]
         bool HasNodeConnections(ushort nodeId);
 
         /// <summary>
         /// Determines if the given lane has outgoing connections.
         /// </summary>
         /// <param name="startNode">start node for the segment of the lane.</param>
+        [Obsolete]
         public bool HasConnections(uint sourceLaneId, bool startNode);
 
         /// <summary>
         /// Checks if traffic may flow from source lane to target lane according to setup lane connections
         /// </summary>
         /// <param name="sourceStartNode">check at start node of the segment of the source lane?</param>
+        [Obsolete]
         public bool AreLanesConnected(uint sourceLaneId, uint targetLaneId, bool sourceStartNode);
     }
 }

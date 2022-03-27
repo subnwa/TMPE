@@ -18,7 +18,7 @@ namespace TrafficManager.Util.Record {
 
         private static LaneConnectionManager connMan => LaneConnectionManager.Instance;
 
-        private uint[] GetCurrentConnections() => connMan.GetLaneConnections(LaneId, StartNode);
+        private uint[] GetCurrentConnections() => connMan.GetLaneCarConnections(LaneId, StartNode);
 
         public void Record() {
             connections_ = GetCurrentConnections();
