@@ -149,8 +149,9 @@
     <Compile Include="Manager\Impl\ExtSegmentManager.cs" />
     <Compile Include="Manager\Impl\GeometryNotifier.cs" />
     <Compile Include="Manager\Impl\LaneConnectionManagerData\ConnectionDataBase.cs" />
-    <Compile Include="Manager\Impl\LaneConnectionManagerData\LaneConnectionData.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManagerData\LaneEndConnectionData.cs" />
     <Compile Include="Manager\Impl\LaneConnectionManagerData\LaneEnd.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManagerData\LaneEndConnectionCollection.cs" />
     <Compile Include="Patch\_External\RTramAIModPatch.cs" />
     <Compile Include="State\OptionsTabs\GameplayTab_AIGroups.cs" />
     <Compile Include="State\OptionsTabs\GeneralTab_CompatibilityGroup.cs" />
