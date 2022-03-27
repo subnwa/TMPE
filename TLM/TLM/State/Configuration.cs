@@ -9,7 +9,7 @@ namespace TrafficManager {
     using System.Runtime.Serialization;
     using TrafficManager.Lifecycle;
     using Util;
-    using TrafficManager.API.Traffic.Enums;
+    using LaneEndTransitionGroup = TrafficManager.API.Traffic.Enums.LaneEndTransitionGroup;
 
     [Serializable]
     public class Configuration {

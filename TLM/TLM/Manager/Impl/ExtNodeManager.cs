@@ -8,6 +8,7 @@ namespace TrafficManager.Manager.Impl {
     using ColossalFramework;
     using TrafficManager.Util.Extensions;
     using TrafficManager.Util.Iterators;
+    using TrafficManager.API.Traffic.Enums;
 
     public class ExtNodeManager
         : AbstractCustomManager,
@@ -38,7 +39,7 @@ namespace TrafficManager.Manager.Impl {
         /// <param name="nodeId">NodeId of the node to test.</param>
         /// <returns></returns>
         public static bool JunctionHasHighwayRules(ushort nodeId) {
-            return JunctionHasOnlyHighwayRoads(nodeId) && !LaneConnectionManager.Instance.HasNodeConnections(nodeId);
+            return JunctionHasOnlyHighwayRoads(nodeId) && !LaneConnectionManager.Instance.HasNodeConnections(nodeId, LaneEndTransitionGroup.Car);
         }
 
         public GetNodeSegmentIdsEnumerable GetNodeSegmentIds(ushort nodeId, ClockDirection clockDirection) {

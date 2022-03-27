@@ -265,7 +265,7 @@ namespace TrafficManager.UI.SubTools.LaneArrows {
                 startNode,
                 LaneArrowManager.LANE_TYPES,
                 LaneArrowManager.VEHICLE_TYPES)) {
-                if (!LaneConnectionManager.Instance.HasOutgoingConnections(lanePos.laneId)) {
+                if (!LaneConnectionManager.Instance.HasOutgoingConnections(lanePos.laneId, LaneEndTransitionGroup.Car)) {
                     return true;
                 }
             }

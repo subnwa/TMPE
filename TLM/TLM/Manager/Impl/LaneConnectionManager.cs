@@ -184,7 +184,7 @@ namespace TrafficManager.Manager.Impl {
 
             uint sourceLaneId = segmentId.ToSegment().m_lanes;
             while (sourceLaneId != 0) {
-                uint[] targetLaneIds = GetLaneCarConnections(sourceLaneId, startNode);
+                uint[] targetLaneIds = GetLaneConnections(sourceLaneId, startNode, LaneEndTransitionGroup.Car);
 
                 if (targetLaneIds != null) {
                     foreach (uint targetLaneId in targetLaneIds) {
@@ -204,7 +204,7 @@ namespace TrafficManager.Manager.Impl {
         /// Gets all lane connections for the given lane
         /// Note: Not performance critical
         /// </summary>
-        internal uint[] GetLaneCarConnections(uint laneId, bool startNode) {
+        internal uint[] GetLaneConnections(uint laneId, bool startNode, LaneEndTransitionGroup group) {
             if (!Options.laneConnectorEnabled) {
                 return null;
             }
@@ -216,12 +216,32 @@ namespace TrafficManager.Manager.Impl {
             LaneEnd key = new(laneId, startNode);
             if (connectionDataBase_.TryGetValue(key, out var targets)) {
                 return targets.Connections
-                .Where(item => item.Has(LaneEndTransitionGroup.Car))
+                .Where(item => item.Has(group))
                 .Select(item => item.LaneId)
                 .ToArray();
             }
             return null;
         }
+
+        internal KeyValuePair<uint, LaneEndTransitionGroup>[] GetLaneConnections(uint laneId, bool startNode) {
+            if (!Options.laneConnectorEnabled) {
+                return null;
+            }
+
+            if (!ValidateLane(laneId)) {
+                return null;
+            }
+
+            LaneEnd key = new(laneId, startNode);
+            if (connectionDataBase_.TryGetValue(key, out var targets)) {
+                return targets.Connections
+                .Where(item => !item.IsEmpty)
+                .Select(item => new KeyValuePair<uint, LaneEndTransitionGroup>(item.LaneId, item.Group))
+                .ToArray();
+            }
+            return null;
+        }
+
 
         [Obsolete("use the overload that takes group ", error: true)]
         internal bool RemoveLaneConnection(uint sourceLaneId, uint targetLaneId, bool sourceStartNode) =>

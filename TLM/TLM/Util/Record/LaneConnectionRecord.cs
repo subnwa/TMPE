@@ -3,6 +3,7 @@ namespace TrafficManager.Util.Record {
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using TrafficManager.API.Traffic.Enums;
     using TrafficManager.Manager.Impl;
     using TrafficManager.State;
     using TrafficManager.Util.Extensions;
@@ -15,36 +16,25 @@ namespace TrafficManager.Util.Record {
         public bool StartNode;
 
         private uint[] connections_;
+        LaneEndTransitionGroup[] groups_;
 
         private static LaneConnectionManager connMan => LaneConnectionManager.Instance;
 
-        private uint[] GetCurrentConnections() => connMan.GetLaneCarConnections(LaneId, StartNode);
-
         public void Record() {
-            connections_ = GetCurrentConnections();
-            //Log._Debug($"LaneConnectionRecord.Record: connections_=" + connections_.ToSTR());
-
-            if (connections_ != null)
-                connections_ = (uint[])connections_.Clone();
+            var connections = connMan.GetLaneConnections(LaneId, StartNode);
+            connections_ = connections.Select(item => item.Key).ToArray();
+            groups_ = connections.Select(item => item.Value).ToArray();
         }
 
         public void Restore() {
-            if (connections_ == null) {
-                connMan.RemoveLaneConnections(LaneId, StartNode);
-                return;
-            }
-            var currentConnections = GetCurrentConnections();
-            //Log._Debug($"currentConnections=" + currentConnections.ToSTR());
-            //Log._Debug($"connections_=" + connections_.ToSTR());
-
-            foreach (uint targetLaneId in connections_) {
-                if (currentConnections == null || !currentConnections.Contains(targetLaneId)) {
-                    connMan.AddLaneConnection(LaneId, targetLaneId, StartNode);
-                }
-            }
-            foreach (uint targetLaneId in currentConnections ?? Enumerable.Empty<uint>()) {
-                if (!connections_.Contains(targetLaneId)) {
-                    connMan.RemoveLaneConnection(LaneId, targetLaneId, StartNode);
+            connMan.RemoveLaneConnections(LaneId, StartNode);
+            if(connections_ != null) {
+                for (int i = 0; i < connections_.Length; ++i) {
+                    LaneEndTransitionGroup group = LaneEndTransitionGroup.All;
+                    if (groups_ != null && i < groups_.Length) {
+                        group = groups_[i];
+                    }
+                    connMan.AddLaneConnection(LaneId, connections_[i], StartNode, group);
                 }
             }
         }
@@ -57,23 +47,22 @@ namespace TrafficManager.Util.Record {
                 Log._Debug($"Could not map lane:{originalLaneID}. this is expected if move it has not copied all segment[s] from an intersection");
                 return 0;
             }
+
+            connMan.RemoveLaneConnections(LaneId, StartNode);
+
             var mappedLaneId = MappedLaneId(LaneId);
-
-            if (connections_ == null) {
-                connMan.RemoveLaneConnections(mappedLaneId, StartNode);
-                return;
-            }
-
             if (mappedLaneId == 0)
                 return;
 
-            //Log._Debug($"connections_=" + connections_.ToSTR());
-            foreach (uint targetLaneId in connections_) {
-                var mappedTargetLaneId = MappedLaneId(targetLaneId);
-                if (mappedTargetLaneId == 0)
-                    continue;
-                //Log._Debug($"connecting lanes: {mappedLaneId}->{mappedTargetLaneId}");
-                connMan.AddLaneConnection(mappedLaneId, mappedTargetLaneId, StartNode);
+            if (connections_ != null) {
+                for (int i = 0; i < connections_.Length; ++i) {
+                    LaneEndTransitionGroup group = LaneEndTransitionGroup.All;
+                    if (groups_ != null && i < groups_.Length) {
+                        group = groups_[i];
+                    }
+                    uint mappedTargetLaneId = MappedLaneId(connections_[i]);
+                    connMan.AddLaneConnection(LaneId, mappedTargetLaneId, StartNode, group);
+                }
             }
         }
 
