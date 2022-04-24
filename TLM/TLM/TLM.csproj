@@ -147,9 +147,10 @@
     <Compile Include="Manager\Impl\ExtSegmentEndManager.cs" />
     <Compile Include="Manager\Impl\ExtSegmentManager.cs" />
     <Compile Include="Manager\Impl\GeometryNotifier.cs" />
-    <Compile Include="Manager\Impl\LaneConnectionManagerData\ConnectionDataBase.cs" />
-    <Compile Include="Manager\Impl\LaneConnectionManagerData\LaneConnectionData.cs" />
-    <Compile Include="Manager\Impl\LaneConnectionManagerData\LaneEnd.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManager\ConnectionDataBase.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManager\LaneConnectionData.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManager\LaneEnd.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManager\SubLaneConnectionManager.cs" />
     <Compile Include="Patch\_External\RTramAIModPatch.cs" />
     <Compile Include="State\OptionsTabs\GameplayTab_AIGroups.cs" />
     <Compile Include="State\OptionsTabs\GeneralTab_CompatibilityGroup.cs" />
@@ -339,7 +340,7 @@
     <Compile Include="State\OptionsTabs\OverlaysTab.cs" />
     <Compile Include="State\OptionsTabs\PoliciesTab.cs" />
     <Compile Include="TrafficLight\Impl\CustomSegmentLights.cs" />
-    <Compile Include="Manager\Impl\LaneConnectionManager.cs" />
+    <Compile Include="Manager\Impl\LaneConnectionManager\RootLaneConnectionManager.cs" />
     <Compile Include="Manager\Impl\ExtVehicleManager.cs" />
     <Compile Include="Manager\Impl\VehicleRestrictionsManager.cs" />
     <Compile Include="Custom\PathFinding\CustomPathManager.cs" />

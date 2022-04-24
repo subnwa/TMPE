@@ -1,4 +1,4 @@
-namespace TrafficManager.Manager.Impl {
+namespace TrafficManager.Manager.Impl.LaneConnectionManager {
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -7,7 +7,7 @@ namespace TrafficManager.Manager.Impl {
     using TrafficManager.API.Traffic.Data;
     using TrafficManager.API.Traffic.Enums;
     using TrafficManager.Lifecycle;
-    using TrafficManager.Manager.Impl.LaneConnectionManagerData;
+    using TrafficManager.Manager.Impl.LaneConnectionManager;
     using TrafficManager.State;
     using TrafficManager.Util.Extensions;
     using UnityEngine;
@@ -16,7 +16,7 @@ namespace TrafficManager.Manager.Impl {
     using TrafficManager.State.ConfigData;
 #endif
 
-    public class LaneConnectionManager
+    public class SubLaneConnectionManager
         : AbstractGeometryObservingManager,
           ICustomDataManager<List<Configuration.LaneConnection>>,
           ILaneConnectionManager {
@@ -36,11 +36,11 @@ namespace TrafficManager.Manager.Impl {
 
         public VehicleInfo.VehicleType VehicleTypes => VEHICLE_TYPES;
 
-        static LaneConnectionManager() {
-            Instance = new LaneConnectionManager();
+        static SubLaneConnectionManager() {
+            Instance = new SubLaneConnectionManager();
         }
 
-        public static LaneConnectionManager Instance { get; }
+        public static SubLaneConnectionManager Instance { get; }
 
         public override void OnBeforeLoadData() {
             base.OnBeforeLoadData();

@@ -1,4 +1,4 @@
-namespace TrafficManager.Manager.Impl.LaneConnectionManagerData {
+namespace TrafficManager.Manager.Impl.LaneConnectionManager {
 
     /// <summary>
     /// for every connection, both forward and backward connection pairs are created.

@@ -1,4 +1,4 @@
-namespace TrafficManager.Manager.Impl.LaneConnectionManagerData {
+namespace TrafficManager.Manager.Impl.LaneConnectionManager {
     using CSUtil.Commons;
     using System.Collections.Generic;
     using System.Diagnostics;
